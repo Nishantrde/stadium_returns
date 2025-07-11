@@ -1,0 +1,101 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Revolving Babelade with WASD</title>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: rgb(21, 0, 39);
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+<script>
+  let bg, babelade;
+  let spinAngle = 0;
+  let orbitAngle = 0;
+  let orbitRadius = 300;
+  let orbitSpeed = 0.02;
+
+  let direction = 1; // +1 = clockwise, -1 = counterclockwise
+
+  function preload() {
+    bg = loadImage("{% static 'bg.png' %}");
+    babelade = loadImage("{% static 'babelade.png' %}");
+    cap = loadImage("{% static 'cap.png' %}");
+    ak = loadImage("{% static 'ak.png '%}");
+
+  }
+
+  function setup() {
+    createCanvas(windowWidth, windowHeight);
+    imageMode(CENTER);
+  }
+
+  function draw() {
+    clear();
+
+    // Draw stadium background
+    image(bg, (width+(width*0.007)) / 2, height / 2, 1290, 1250);
+
+    // WASD controls
+    if (keyIsDown(87)) orbitRadius = max(100, orbitRadius - 2);      // W = decrease radius
+    if (keyIsDown(83)) orbitRadius = min(450, orbitRadius + 2);    // S = increase radius
+    if (keyIsDown(65)) direction = 1;                                 // A = clockwise
+    if (keyIsDown(68)) direction = -1;                                // D = counterclockwise
+
+    // Always orbit using last direction
+    orbitAngle += orbitSpeed * direction;
+
+    // Calculate orbit position
+    let bladeX = width / 2 + cos(orbitAngle) * orbitRadius;
+    let bladeY = height / 2 + sin(orbitAngle) * orbitRadius;
+
+    // Draw spinning beyblade
+    push();
+    translate(bladeX, bladeY);
+    rotate(spinAngle);
+    image(babelade, 0, 0, 150, 150);
+    pop();
+
+    push();
+    translate(bladeX, bladeY);
+    image(cap, 0, 0, 100, 100);
+    pop();
+
+    push();
+    translate(bladeX, bladeY);
+
+    // Calculate angle to mouse
+    let dx = mouseX - bladeX;
+    let dy = mouseY - bladeY;
+    let angleToMouse = atan2(dy, dx);
+
+    // Rotate towards mouse and draw ak
+    rotate(angleToMouse);
+    image(ak, 20, 0, 150, 120); // Offset slightly to simulate "barrel"
+    pop();
+
+
+    // Update spin
+    spinAngle += 0.2;
+  }
+
+  function windowResized() {
+    resizeCanvas(windowWidth, windowHeight);
+  }
+</script>
+
+
+</body>
+</html>
