@@ -21,7 +21,7 @@
 <script>
   let bg, babelade, cap, ak;
   let flash1, flash2, flash3, smoke1, smoke2, smoke3;
-  let rev_smoke1, rev_smoke2, rev_smoke3;
+  let rev_smoke1, rev_smoke2, rev_smoke3, ak_shell;
   let spinAngle = 0;
   let orbitAngle = 0;
   let orbitRadius = 300;
@@ -33,6 +33,12 @@
   let blinkDirection = 1;
   let barrelWorldX = 0;
   let barrelWorldY = 0;
+
+  let bladeX = 0, bladeY = 0;
+  let shells = [];
+
+  let flash_lst = [], smoke_lst = [], rev_smoke_lst = [];
+  let lastShellTime = 0;
 
   function preload() {
     bg = loadImage("{% static 'bg.png' %}");
@@ -48,11 +54,22 @@
     rev_smoke1 = loadImage("{% static 'rev_smoke1.png' %}");
     rev_smoke2 = loadImage("{% static 'rev_smoke2.png' %}");
     rev_smoke3 = loadImage("{% static 'rev_smoke3.png' %}");
+    ak_shell = loadImage("{% static 'ak_shell.png' %}");
   }
 
   function setup() {
     createCanvas(windowWidth, windowHeight);
     imageMode(CENTER);
+
+    for (let j = 0; j <= 10; j++) {
+      flash_lst.push(flash1); smoke_lst.push(smoke1); rev_smoke_lst.push(rev_smoke1);
+    }
+    for (let j = 0; j <= 8; j++) {
+      flash_lst.push(flash2); smoke_lst.push(smoke2);
+    }
+    for (let j = 0; j <= 20; j++) {
+      flash_lst.push(flash3); smoke_lst.push(smoke3); rev_smoke_lst.push(rev_smoke2);
+    }
   }
 
   function draw() {
@@ -60,15 +77,15 @@
     image(bg, (width + (width * 0.007)) / 2, height / 2, 1290, 1250);
 
     // WASD Controls
-    if (keyIsDown(87)) orbitRadius = max(100, orbitRadius - 2);  // W
-    if (keyIsDown(83)) orbitRadius = min(450, orbitRadius + 2);  // S
-    if (keyIsDown(65)) direction = 1;                            // A
-    if (keyIsDown(68)) direction = -1;                           // D
+    if (keyIsDown(87)) orbitRadius = max(100, orbitRadius - 2);
+    if (keyIsDown(83)) orbitRadius = min(450, orbitRadius + 2);
+    if (keyIsDown(65)) direction = 1;
+    if (keyIsDown(68)) direction = -1;
 
     orbitAngle += orbitSpeed * direction;
 
-    let bladeX = width / 2 + cos(orbitAngle) * orbitRadius;
-    let bladeY = height / 2 + sin(orbitAngle) * orbitRadius;
+    bladeX = width / 2 + cos(orbitAngle) * orbitRadius;
+    bladeY = height / 2 + sin(orbitAngle) * orbitRadius;
 
     // Spinning Beyblade
     push();
@@ -83,13 +100,13 @@
     image(cap, 0, 0, 100, 100);
     pop();
 
-    // AK angle and barrel tip with jitter
+    // AK angle and barrel tip
     let dx = mouseX - bladeX;
     let dy = mouseY - bladeY;
+    let jitter = 0;
     let angleToMouse = atan2(dy, dx);
     if (haloBlinking) {
-      degrees = 3
-      let jitter = radians(random(-degrees, degrees));  // ±15 degrees
+      jitter = radians(random(-3, 3));
       angleToMouse += jitter;
     }
 
@@ -109,7 +126,7 @@
       vibY = offset.y;
     }
 
-    // Draw AK with vibration and jitter
+    // Draw AK
     push();
     translate(bladeX + vibX, bladeY + vibY);
     rotate(angleToMouse);
@@ -121,79 +138,103 @@
       drawBlinkingHalo(barrelWorldX, barrelWorldY, 60, angleToMouse);
     }
 
+    // Draw ejected shells (disappear after 3 seconds)
+    let now = millis();
+    shells = shells.filter(s => now - s.time < 2000);
+    // console.log(shells)
+    for (let s of shells) {
+      s.rotation += s.rotationSpeed;  // ⬅️ Update rotation continuously
+      if (s.rotationSpeed>=0){
+        s.rotationSpeed -= 0.01;
+      }
+      push();
+      translate(s.x, s.y);
+      rotate(s.rotation);            // ⬅️ Spin around center!
+      image(ak_shell, 0, 0, 20, 25); // ⬅️ Adjust Y offset if needed
+      pop();
+    }
+
+
     spinAngle += 0.18;
   }
 
-function drawBlinkingHalo(x, y, size, angle) {
-  // Animate alpha
-  let rate = 10;
-  blinkAlpha += blinkDirection * 15;
-  if (blinkAlpha >= 255) {
-    blinkAlpha = 255;
-    blinkDirection = -rate;
-  } else if (blinkAlpha <= 0) {
-    blinkAlpha = 0;
-    blinkDirection = rate;
+  function drawBlinkingHalo(x, y, size, angle) {
+    // Animate alpha
+    let rate = 10;
+    blinkAlpha += blinkDirection * 15;
+    if (blinkAlpha >= 255) {
+      blinkAlpha = 255;
+      blinkDirection = -rate;
+    } else if (blinkAlpha <= 0) {
+      blinkAlpha = 0;
+      blinkDirection = rate;
+    }
+
+    // Halo vibration
+    let vibX = 0;
+    let vibY = 0;
+    if (haloBlinking) {
+      let strength = 5;
+      let offset = p5.Vector.fromAngle(random(TWO_PI));
+      offset.setMag(random(-strength, strength));
+      vibX = offset.x;
+      vibY = offset.y;
+    }
+
+    // Halo glow
+    push();
+    drawingContext.save();
+    let gradient = drawingContext.createRadialGradient(x + vibX, y + vibY, 0, x + vibX, y + vibY, size);
+    gradient.addColorStop(0, `rgba(255, 255, 120, ${blinkAlpha / 255})`);
+    gradient.addColorStop(0.4, `rgba(255, 255, 0, ${blinkAlpha / 600})`);
+    gradient.addColorStop(1, 'rgba(255, 255, 0, 0)');
+    drawingContext.fillStyle = gradient;
+    noStroke();
+    ellipse(x + vibX, y + vibY, size * 2, size * 2);
+    drawingContext.restore();
+    pop();
+
+    // Flash and smoke
+    push();
+    translate(x + vibX, y + vibY);
+    rotate(angle);
+    size += size * 0.2;
+
+    let flash = random(flash_lst);
+    let smoke = random(smoke_lst);
+    let rev_smoke = random(rev_smoke_lst);
+
+    if (flash && smoke) {
+      image(flash, 0, 0, size, size);
+      tint(255, 80);
+      image(smoke, 0, 0, size + size * 0.3, size + size * 0.3);
+      noTint();
+      tint(255, 60);
+      image(rev_smoke, -100, -8, size * 0.6, size * 0.5);
+      noTint();
+    }
+    pop();
+
+    if (millis() - lastShellTime > 50) {
+      // Same offset as used for rev_smoke image
+      let offset = createVector(-100, -8);
+      offset.rotate(angle);
+      let revX = x + vibX + offset.x;
+      let revY = y + vibY + offset.y;
+
+      shells.push({
+        x: revX,
+        y: revY,
+        angle: angle,
+        time: millis(),
+        rotation: random(TWO_PI),
+        rotationSpeed: 0.4
+      });
+      lastShellTime = millis();
+    }
+
+
   }
-
-  // Add vibration to halo, smoke, and flash
-  let vibX = 0;
-  let vibY = 0;
-  if (haloBlinking) {
-    let strength = 5;
-    let offset = p5.Vector.fromAngle(random(TWO_PI));
-    offset.setMag(random(-strength, strength));
-    vibX = offset.x;
-    vibY = offset.y;
-  }
-
-  // Halo glow with vibration
-  push();
-  drawingContext.save();
-  let gradient = drawingContext.createRadialGradient(x + vibX, y + vibY, 0, x + vibX, y + vibY, size);
-  gradient.addColorStop(0, `rgba(255, 255, 120, ${blinkAlpha / 255})`);
-  gradient.addColorStop(0.4, `rgba(255, 255, 0, ${blinkAlpha / 600})`);
-  gradient.addColorStop(1, 'rgba(255, 255, 0, 0)');
-  drawingContext.fillStyle = gradient;
-  noStroke();
-  ellipse(x + vibX, y + vibY, size * 2, size * 2);
-  drawingContext.restore();
-  pop();
-
-  // Flash and smoke with vibration
-  push();
-  translate(x + vibX, y + vibY);
-  rotate(angle);
-  size += size * 0.2;
-
-  let flash_lst = [], smoke_lst = [], rev_smoke_lst = [];
-
-  for (let j = 0; j <= 10; j++) {
-    flash_lst.push(flash1); smoke_lst.push(smoke1); rev_smoke_lst.push(rev_smoke1);
-  }
-  for (let j = 0; j <= 8; j++) {
-    flash_lst.push(flash2); smoke_lst.push(smoke2);
-  }
-  for (let j = 0; j <= 20; j++) {
-    flash_lst.push(flash3); smoke_lst.push(smoke3); rev_smoke_lst.push(rev_smoke2);
-  }
-
-  let flash = random(flash_lst);
-  let smoke = random(smoke_lst);
-  let rev_smoke = random(rev_smoke_lst);
-
-  if (flash && smoke) {
-    image(flash, 0, 0, size, size);
-    tint(255, 80);
-    image(smoke, 0, 0, size + size * 0.3, size + size * 0.3);
-    noTint();
-    tint(255, 60);
-    image(rev_smoke, -100, -8, size * 0.6, size * 0.5);
-    noTint();
-  }
-
-  pop();
-}
 
   function mousePressed() {
     if (mouseButton === LEFT) {
